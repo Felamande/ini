@@ -93,7 +93,7 @@ func Unmarshall(data *[]byte, v interface{}) {
 			loc := s.scansym()
 			section.FieldByName(lineString[0:loc]).SetString(lineString[loc+1 : s.length])
 
-			//section.FieldByName()
+			
 		}
 	}
 
