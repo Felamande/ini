@@ -72,7 +72,7 @@ func convToStringSlice(data *[]byte) (re []string, err error) {
 	return re, nil
 }
 
-func Unmarshall(data *[]byte, v interface{}) {
+func Unmarshal(data *[]byte, v interface{}) {
 	lines, _ := convToStringSlice(data)
 
 	mainStruct := reflect.ValueOf(v).Elem()
