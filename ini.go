@@ -72,7 +72,7 @@ func convToStringSlice(data *[]byte) (re []string, err error) {
 	return re, nil
 }
 
-func Unmarshal(data *[]byte, v interface{}) {
+func Unmarshall(data *[]byte, v interface{}) {
 	lines, _ := convToStringSlice(data)
 
 	mainStruct := reflect.ValueOf(v).Elem()
@@ -81,17 +81,23 @@ func Unmarshal(data *[]byte, v interface{}) {
 	var s scanner
 
 	for _, lineString := range lines {
-		if string(lineString[0]) == "[" {
-			sectionName := lineString[1 : len(lineString)-1]
-			section = mainStruct.FieldByName(sectionName)
-		} else {
-			sd := []byte(lineString)
-			s.data = &sd
-			s.from = 0
-			s.sym = bEqual
-			s.length = len(lineString)
-			loc := s.scansym()
-			section.FieldByName(lineString[0:loc]).SetString(lineString[loc+1 : s.length])
+		length := len(lineString)
+		if length != 0 {
+			if string(lineString[0]) == "[" {
+				sectionName := lineString[1 : length-1]
+				section = mainStruct.FieldByName(sectionName)
+			} else {
+				sd := []byte(lineString)
+				s.data = &sd
+				s.from = 0
+				s.sym = bEqual
+				s.length = length
+				loc := s.scansym()
+				if Key := section.FieldByName(lineString[0:loc]); Key.CanSet() {
+					Key.SetString(lineString[loc+1 : length])
+				}
+			}
 		}
+
 	}
 }
