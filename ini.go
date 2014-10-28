@@ -3,16 +3,6 @@ package ini
 import "strconv"
 import "reflect"
 
-const (
-	bLMBrac = '['
-	bRMBrac = ']'
-	bColon  = ':'
-	bComma  = ','
-	bEqual  = '='
-	bNega   = '-'
-	bPoint  = '.'
-)
-
 type invalidError struct {
 	line int
 	sym  byte
@@ -48,15 +38,14 @@ func (s *scanner) checkTail() {
 
 }
 
-func checkValid(pdata *[]byte) (err error) {
-	if (*pdata)[len(*pdata)-1] != '\n' {
-		(*pdata) = append(*pdata, '\n')
+func checkValid(data *[]byte) (err error) {
+	if (*data)[len(*data)-1] != '\n' {
+		(*data) = append(*data, '\n')
 	}
-	//for
 	return &invalidError{1, ']'}
 }
 
-func convToStringSlice(data *[]byte) (re []string, err error) {
+func convToStringSlice(data *[]byte) (re []string) {
 	//if e := checkValid(data); e != nil {
 	//	return []string{"[failure]"}, e
 	//}
@@ -67,37 +56,89 @@ func convToStringSlice(data *[]byte) (re []string, err error) {
 	for s.from != s.length {
 		thisfrom := s.from
 		thisloc := s.scansym()
-		re = append(re, string((*data)[thisfrom:thisloc]))
+		if thisloc != thisfrom {
+			re = append(re, string((*data)[thisfrom:thisloc]))
+		}
 	}
-	return re, nil
+	return re
 }
 
-func Unmarshall(data *[]byte, v interface{}) {
-	lines, _ := convToStringSlice(data)
+func Unmarshal1(data *[]byte, v interface{}) {
+	lines := convToStringSlice(data)
 
 	mainStruct := reflect.ValueOf(v).Elem()
 	var section reflect.Value
 
 	var s scanner
 
-	for _, lineString := range lines {
+	for index, lineString := range lines {
 		length := len(lineString)
-		if length != 0 {
-			if string(lineString[0]) == "[" {
-				sectionName := lineString[1 : length-1]
-				section = mainStruct.FieldByName(sectionName)
+		if string(lineString[0]) == "[" {
+			sectionName := lineString[1 : length-1]
+			preSection := section
+			if section = mainStruct.FieldByName(sectionName); !section.CanSet() {
+				if index == 0 {
+					section = mainStruct.Field(0)
+				} else {
+					section = preSection
+				}
+			}
+		} else {
+			sd := []byte(lineString)
+			s.data = &sd
+			s.from = 0
+			s.sym = '='
+			s.length = length
+			loc := s.scansym()
+			if Key := section.FieldByName(lineString[0:loc]); Key.CanSet() {
+				Key.SetString(lineString[loc+1 : length])
+			}
+		}
+	}
+}
+
+func Unmarshal2(data *[]byte, v interface{}) {
+	mainStruct := reflect.ValueOf(v).Elem()
+	var section reflect.Value
+
+	var s scanner = scanner{data: data, from: 0, length: len(*data)}
+	s.checkTail()
+	for s.from != s.length {
+		if (*data)[s.from] == '[' {
+			s.sym = ']'
+			thisfrom := s.from
+			thisloc := s.scansym()
+			sectionName := (*data)[thisfrom+1 : thisloc]
+			if section = mainStruct.FieldByName(string(sectionName)); !section.CanSet() {
+				s.sym = '['
+				s.scansym()
+				if s.from != s.length {
+					s.from = s.from - 1
+				}
+			}
+			if s.length != s.from {
+				for (*data)[s.from] == '\n' {
+					s.from = s.from + 1
+				}
+			}
+		} else {
+			s.sym = '='
+			thisfrom := s.from
+			thisloc := s.scansym()
+			if key := section.FieldByName(string((*data)[thisfrom:thisloc])); key.CanSet() {
+				s.sym = '\n'
+				thisfrom := s.from
+				thisloc := s.scansym()
+				key.SetString(string((*data)[thisfrom:thisloc]))
 			} else {
-				sd := []byte(lineString)
-				s.data = &sd
-				s.from = 0
-				s.sym = bEqual
-				s.length = length
-				loc := s.scansym()
-				if Key := section.FieldByName(lineString[0:loc]); Key.CanSet() {
-					Key.SetString(lineString[loc+1 : length])
+				s.sym = '\n'
+				s.scansym()
+			}
+			if s.length != s.from {
+				for (*data)[s.from] == '\n' {
+					s.from = s.from + 1
 				}
 			}
 		}
-
 	}
 }
